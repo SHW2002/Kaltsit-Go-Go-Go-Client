@@ -1,119 +1,126 @@
 <!DOCTYPE html>
-<html lang="en-us">
+<html lang="zh-CN">
   <head>
     <meta charset="utf-8">
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Unity WebGL Player | Kaltsit Go Go Go !</title>
-    <link rel="shortcut icon" href="TemplateData/favicon.ico">
-    <link rel="stylesheet" href="TemplateData/style.css">
+    <meta
+      name="viewport"
+      content="width=device-width, height=device-height, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    >
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Kaltsit Go Go Go !</title>
+    <link rel="stylesheet" href="style.css">
   </head>
   <body>
-    <div id="unity-container" class="unity-desktop">
-      <canvas id="unity-canvas" width=1280 height=720></canvas>
-      <div id="unity-loading-bar">
-        <div id="unity-logo"></div>
-        <div id="unity-progress-bar-empty">
-          <div id="unity-progress-bar-full"></div>
-        </div>
-      </div>
-      <div id="unity-warning"> </div>
-      <div id="unity-footer">
-        <div id="unity-webgl-logo"></div>
-        <div id="unity-fullscreen-button"></div>
-        <div id="unity-build-title">Kaltsit Go Go Go !</div>
-      </div>
-    </div>
-    <script>
-      var container = document.querySelector("#unity-container");
-      var canvas = document.querySelector("#unity-canvas");
-      var loadingBar = document.querySelector("#unity-loading-bar");
-      var progressBarFull = document.querySelector("#unity-progress-bar-full");
-      var fullscreenButton = document.querySelector("#unity-fullscreen-button");
-      var warningBanner = document.querySelector("#unity-warning");
+    <main id="unity-container">
+      <canvas id="unity-canvas" width="1280" height="720" tabindex="-1"></canvas>
 
-      // Shows a temporary message banner/ribbon for a few seconds, or
-      // a permanent error message on top of the canvas if type=='error'.
-      // If type=='warning', a yellow highlight color is used.
-      // Modify or remove this function to customize the visually presented
-      // way that non-critical warnings and error messages are presented to the
-      // user.
-      function unityShowBanner(msg, type) {
-        function updateBannerVisibility() {
-          warningBanner.style.display = warningBanner.children.length ? 'block' : 'none';
-        }
-        var div = document.createElement('div');
-        div.innerHTML = msg;
-        warningBanner.appendChild(div);
-        if (type == 'error') div.style = 'background: red; padding: 10px;';
-        else {
-          if (type == 'warning') div.style = 'background: yellow; padding: 10px;';
-          setTimeout(function() {
-            warningBanner.removeChild(div);
-            updateBannerVisibility();
-          }, 5000);
-        }
-        updateBannerVisibility();
+      <section id="unity-loading-bar" aria-label="游戏加载进度">
+        <div id="unity-build-title">Kaltsit Go Go Go !</div>
+        <div id="unity-progress-track">
+          <div id="unity-progress-bar"></div>
+        </div>
+      </section>
+
+      <div id="unity-warning" role="status"></div>
+
+      <button id="unity-fullscreen-button" type="button" aria-label="全屏游玩">⛶</button>
+
+      <div id="orientation-hint" aria-hidden="true">
+        <div class="orientation-phone">↻</div>
+        <div>请旋转手机并横屏游玩</div>
+      </div>
+    </main>
+
+    <script>
+      const container = document.querySelector('#unity-container');
+      const canvas = document.querySelector('#unity-canvas');
+      const loadingBar = document.querySelector('#unity-loading-bar');
+      const progressBar = document.querySelector('#unity-progress-bar');
+      const fullscreenButton = document.querySelector('#unity-fullscreen-button');
+      const warningBanner = document.querySelector('#unity-warning');
+      const orientationHint = document.querySelector('#orientation-hint');
+
+      const mobileUserAgent = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+      const touchDevice = navigator.maxTouchPoints > 1;
+      const coarsePointer = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+      const isMobile = mobileUserAgent || (touchDevice && coarsePointer);
+
+      if (isMobile) {
+        container.classList.add('unity-mobile');
+        canvas.classList.add('unity-mobile');
       }
 
-      var buildUrl = "Build";
-      var loaderUrl = buildUrl + "/Kaltsit Go Go Go ! WebGL.loader.js";
-      var config = {
-        dataUrl: buildUrl + "/Kaltsit Go Go Go ! WebGL.data.unityweb",
-        frameworkUrl: buildUrl + "/Kaltsit Go Go Go ! WebGL.framework.js.unityweb",
-        codeUrl: buildUrl + "/Kaltsit Go Go Go ! WebGL.wasm.unityweb",
-        streamingAssetsUrl: "StreamingAssets",
+      function updateOrientationHint() {
+        const isPortrait = window.innerHeight > window.innerWidth;
+        orientationHint.classList.toggle('visible', isMobile && isPortrait);
+      }
+
+      function unityShowBanner(message, type) {
+        const entry = document.createElement('div');
+        entry.textContent = message;
+        entry.className = type === 'error' ? 'unity-error' : 'unity-warning';
+        warningBanner.appendChild(entry);
+        warningBanner.style.display = 'block';
+
+        if (type !== 'error') {
+          window.setTimeout(function () {
+            entry.remove();
+            warningBanner.style.display = warningBanner.children.length ? 'block' : 'none';
+          }, 5000);
+        }
+      }
+
+      updateOrientationHint();
+      window.addEventListener('resize', updateOrientationHint);
+      window.addEventListener('orientationchange', updateOrientationHint);
+
+      const buildUrl = 'Build';
+      const loaderUrl = buildUrl + '/WebGL.loader.js';
+      const config = {
+        dataUrl: buildUrl + '/WebGL.data.unityweb',
+        frameworkUrl: buildUrl + '/WebGL.framework.js.unityweb',
+        codeUrl: buildUrl + '/WebGL.wasm.unityweb',
+        streamingAssetsUrl: 'StreamingAssets',
         companyName: "SHW Studio",
         productName: "Kaltsit Go Go Go !",
         productVersion: "1.2.1",
-        showBanner: unityShowBanner,
+        showBanner: unityShowBanner
       };
 
-      // By default Unity keeps WebGL canvas render target size matched with
-      // the DOM size of the canvas element (scaled by window.devicePixelRatio)
-      // Set this to false if you want to decouple this synchronization from
-      // happening inside the engine, and you would instead like to size up
-      // the canvas DOM size and WebGL render target sizes yourself.
-      // config.matchWebGLToCanvasSize = false;
-
-      if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
-        // Mobile device style: fill the whole browser client area with the game canvas:
-
-        var meta = document.createElement('meta');
-        meta.name = 'viewport';
-        meta.content = 'width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes';
-        document.getElementsByTagName('head')[0].appendChild(meta);
-        container.className = "unity-mobile";
-        canvas.className = "unity-mobile";
-
-        // To lower canvas resolution on mobile devices to gain some
-        // performance, uncomment the following line:
-        // config.devicePixelRatio = 1;
-
-        unityShowBanner('WebGL builds are not supported on mobile devices.');
-      } else {
-        // Desktop style: Render the game canvas in a window that can be maximized to fullscreen:
-
-        canvas.style.width = "1280px";
-        canvas.style.height = "720px";
+      if (isMobile) {
+        config.devicePixelRatio = 1;
       }
 
-      loadingBar.style.display = "block";
+      const loaderScript = document.createElement('script');
+      loaderScript.src = loaderUrl;
+      loaderScript.onload = function () {
+        createUnityInstance(canvas, config, function (progress) {
+          progressBar.style.width = (progress * 100) + '%';
+        }).then(function (unityInstance) {
+          loadingBar.style.display = 'none';
+          fullscreenButton.style.display = 'block';
 
-      var script = document.createElement("script");
-      script.src = loaderUrl;
-      script.onload = () => {
-        createUnityInstance(canvas, config, (progress) => {
-          progressBarFull.style.width = 100 * progress + "%";
-        }).then((unityInstance) => {
-          loadingBar.style.display = "none";
-          fullscreenButton.onclick = () => {
+          fullscreenButton.addEventListener('click', function () {
             unityInstance.SetFullscreen(1);
-          };
-        }).catch((message) => {
-          alert(message);
+
+            if (window.screen.orientation && window.screen.orientation.lock) {
+              window.screen.orientation.lock('landscape').catch(function () {
+              });
+            }
+          });
+        }).catch(function (error) {
+          loadingBar.style.display = 'none';
+          unityShowBanner(String(error), 'error');
         });
       };
-      document.body.appendChild(script);
+      loaderScript.onerror = function () {
+        loadingBar.style.display = 'none';
+        unityShowBanner('游戏加载器下载失败，请刷新页面重试。', 'error');
+      };
+      document.body.appendChild(loaderScript);
     </script>
   </body>
 </html>
