@@ -15,6 +15,7 @@
     <meta name="full-screen" content="yes">
     <meta name="x5-fullscreen" content="true">
     <title>Kaltsit Go Go Go !</title>
+    <link rel="manifest" href="manifest.webmanifest">
     <link rel="stylesheet" href="style.css">
   </head>
   <body>
@@ -46,6 +47,7 @@
       const coarsePointer = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
       const isMobile = mobileUserAgent || (touchDevice && coarsePointer);
       let activeUnityInstance = null;
+      let landscapeLocked = false;
 
       if (isMobile) {
         container.classList.add('unity-mobile');
@@ -71,26 +73,77 @@
         }
       }
 
-      async function attemptLandscapeMode() {
-        if (!isMobile || window.innerWidth >= window.innerHeight) {
+      function lockLandscape() {
+        const orientation = window.screen.orientation;
+        if (!orientation || typeof orientation.lock !== 'function') {
+          return Promise.resolve(false);
+        }
+
+        try {
+          return Promise.resolve(orientation.lock('landscape'))
+            .then(function () {
+              landscapeLocked = true;
+              return true;
+            })
+            .catch(function () {
+              return false;
+            });
+        } catch (error) {
+          return Promise.resolve(false);
+        }
+      }
+
+      function requestMobileFullscreen() {
+        if (document.fullscreenElement || document.webkitFullscreenElement) {
+          return Promise.resolve(true);
+        }
+
+        const requestFullscreen = container.requestFullscreen || container.webkitRequestFullscreen;
+        if (!requestFullscreen) {
+          return Promise.resolve(false);
+        }
+
+        try {
+          return Promise.resolve(requestFullscreen.call(container))
+            .then(function () {
+              return true;
+            })
+            .catch(function () {
+              return false;
+            });
+        } catch (error) {
+          return Promise.resolve(false);
+        }
+      }
+
+      function attemptLandscapeMode() {
+        if (!isMobile || landscapeLocked) {
           return;
         }
 
-        try {
-          if (!document.fullscreenElement) {
-            const requestFullscreen = container.requestFullscreen || container.webkitRequestFullscreen;
-            if (requestFullscreen) {
-              await Promise.resolve(requestFullscreen.call(container));
-            }
+        lockLandscape().then(function (locked) {
+          if (!locked && window.innerWidth < window.innerHeight) {
+            requestMobileFullscreen().then(function (enteredFullscreen) {
+              if (enteredFullscreen) {
+                lockLandscape();
+              }
+            });
           }
-        } catch (error) {
+        });
+      }
+
+      function attemptLandscapeFromGesture() {
+        if (!isMobile || landscapeLocked) {
+          return;
         }
 
-        try {
-          if (window.screen.orientation && window.screen.orientation.lock) {
-            await window.screen.orientation.lock('landscape');
-          }
-        } catch (error) {
+        lockLandscape();
+        if (window.innerWidth < window.innerHeight) {
+          requestMobileFullscreen().then(function (enteredFullscreen) {
+            if (enteredFullscreen) {
+              lockLandscape();
+            }
+          });
         }
       }
 
@@ -103,16 +156,38 @@
       updateFullscreenButton();
       attemptLandscapeMode();
       if (isMobile) {
-        const landscapeGestureEvent = window.PointerEvent ? 'pointerdown' : 'touchend';
-        document.addEventListener(landscapeGestureEvent, attemptLandscapeMode, {
+        const landscapeGestureEvent = window.PointerEvent ? 'pointerup' : 'touchend';
+        document.addEventListener(landscapeGestureEvent, attemptLandscapeFromGesture, {
           capture: true,
-          once: true
+          passive: true
         });
       }
 
       window.addEventListener('resize', updateFullscreenButton);
+      document.addEventListener('fullscreenchange', function () {
+        if (!document.fullscreenElement) {
+          landscapeLocked = false;
+        }
+        attemptLandscapeMode();
+      });
+      document.addEventListener('webkitfullscreenchange', function () {
+        if (!document.webkitFullscreenElement) {
+          landscapeLocked = false;
+        }
+        attemptLandscapeMode();
+      });
+      document.addEventListener('visibilitychange', function () {
+        if (!document.hidden) {
+          landscapeLocked = false;
+          attemptLandscapeMode();
+        }
+      });
       window.addEventListener('orientationchange', function () {
-        window.setTimeout(updateFullscreenButton, 100);
+        landscapeLocked = false;
+        window.setTimeout(function () {
+          updateFullscreenButton();
+          attemptLandscapeMode();
+        }, 100);
       });
 
       const buildUrl = 'Build';
