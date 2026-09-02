@@ -29,6 +29,7 @@
         </div>
       </section>
 
+      <div id="unity-orientation-gate" aria-hidden="true"></div>
       <div id="unity-warning" role="status"></div>
 
       <button id="unity-fullscreen-button" type="button" aria-label="全屏游玩" title="全屏">⛶</button>
@@ -40,6 +41,7 @@
       const loadingBar = document.querySelector('#unity-loading-bar');
       const progressBar = document.querySelector('#unity-progress-bar');
       const fullscreenButton = document.querySelector('#unity-fullscreen-button');
+      const orientationGate = document.querySelector('#unity-orientation-gate');
       const warningBanner = document.querySelector('#unity-warning');
 
       const mobileUserAgent = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
@@ -48,6 +50,16 @@
       const isMobile = mobileUserAgent || (touchDevice && coarsePointer);
       let activeUnityInstance = null;
       let landscapeLocked = false;
+      let manualLandscapeRequired = false;
+      let landscapePromptShown = false;
+      let landscapePromptEntry = null;
+      let resolveOrientationReady = null;
+      let orientationReadyResolved = !isMobile;
+      const orientationReadyPromise = isMobile
+        ? new Promise(function (resolve) {
+            resolveOrientationReady = resolve;
+          })
+        : Promise.resolve();
 
       if (isMobile) {
         container.classList.add('unity-mobile');
@@ -55,7 +67,17 @@
       }
 
       function updateFullscreenButton() {
-        fullscreenButton.style.display = !isMobile && activeUnityInstance ? 'block' : 'none';
+        const showMobileFallback = isMobile && manualLandscapeRequired && window.innerWidth < window.innerHeight;
+        const showDesktopFullscreen = !isMobile && activeUnityInstance;
+        const buttonLabel = showMobileFallback ? '手动切换横屏' : '全屏游玩';
+
+        container.classList.toggle('manual-landscape', showMobileFallback);
+        orientationGate.style.display = showMobileFallback ? 'block' : 'none';
+        orientationGate.setAttribute('aria-hidden', showMobileFallback ? 'false' : 'true');
+        fullscreenButton.style.display = showMobileFallback || showDesktopFullscreen ? 'block' : 'none';
+        fullscreenButton.setAttribute('aria-label', buttonLabel);
+        fullscreenButton.title = showMobileFallback ? '横屏' : '全屏';
+        fullscreenButton.textContent = showMobileFallback ? '切换横屏' : '⛶';
       }
 
       function unityShowBanner(message, type) {
@@ -71,6 +93,44 @@
             warningBanner.style.display = warningBanner.children.length ? 'block' : 'none';
           }, 5000);
         }
+
+        return entry;
+      }
+
+      function showLandscapeFallback(message, forceToast) {
+        if (!isMobile || window.innerWidth >= window.innerHeight) {
+          clearLandscapeFallback();
+          return;
+        }
+
+        manualLandscapeRequired = true;
+        updateFullscreenButton();
+
+        if (landscapePromptEntry && landscapePromptEntry.isConnected) {
+          landscapePromptEntry.textContent = message;
+        } else if (!landscapePromptShown || forceToast) {
+          landscapePromptShown = true;
+          landscapePromptEntry = unityShowBanner(message, 'warning');
+        }
+      }
+
+      function clearLandscapeFallback() {
+        manualLandscapeRequired = false;
+        landscapePromptShown = false;
+        if (landscapePromptEntry) {
+          landscapePromptEntry.remove();
+          landscapePromptEntry = null;
+          warningBanner.style.display = warningBanner.children.length ? 'block' : 'none';
+        }
+        updateFullscreenButton();
+      }
+
+      function completeLandscapeEntry() {
+        clearLandscapeFallback();
+        if (!orientationReadyResolved) {
+          orientationReadyResolved = true;
+          resolveOrientationReady();
+        }
       }
 
       function lockLandscape() {
@@ -83,6 +143,7 @@
           return Promise.resolve(orientation.lock('landscape'))
             .then(function () {
               landscapeLocked = true;
+              completeLandscapeEntry();
               return true;
             })
             .catch(function () {
@@ -118,36 +179,63 @@
 
       function attemptLandscapeMode() {
         if (!isMobile || landscapeLocked) {
-          return;
+          return Promise.resolve(landscapeLocked);
         }
 
-        lockLandscape().then(function (locked) {
-          if (!locked && window.innerWidth < window.innerHeight) {
-            requestMobileFullscreen().then(function (enteredFullscreen) {
-              if (enteredFullscreen) {
-                lockLandscape();
-              }
-            });
+        return lockLandscape().then(function (locked) {
+          if (locked || window.innerWidth >= window.innerHeight) {
+            completeLandscapeEntry();
+            return locked;
           }
+
+          return requestMobileFullscreen().then(function (enteredFullscreen) {
+            if (!enteredFullscreen) {
+              showLandscapeFallback('自动横屏失败，请点击“切换横屏”后继续。', false);
+              return false;
+            }
+
+            return lockLandscape().then(function (fullscreenLocked) {
+              if (!fullscreenLocked) {
+                showLandscapeFallback('自动横屏失败，请点击“切换横屏”后继续。', false);
+              }
+              return fullscreenLocked;
+            });
+          });
         });
       }
 
-      function attemptLandscapeFromGesture() {
+      function attemptLandscapeFromButton() {
         if (!isMobile || landscapeLocked) {
-          return;
+          return Promise.resolve(landscapeLocked);
         }
 
-        lockLandscape();
-        if (window.innerWidth < window.innerHeight) {
-          requestMobileFullscreen().then(function (enteredFullscreen) {
-            if (enteredFullscreen) {
-              lockLandscape();
+        const lockAttempt = lockLandscape();
+        const fullscreenAttempt = window.innerWidth < window.innerHeight
+          ? requestMobileFullscreen()
+          : Promise.resolve(document.fullscreenElement || document.webkitFullscreenElement);
+
+        return Promise.all([lockAttempt, fullscreenAttempt]).then(function (results) {
+          if (results[0] || window.innerWidth >= window.innerHeight) {
+            completeLandscapeEntry();
+            return true;
+          }
+
+          const finishAttempt = results[1] ? lockLandscape() : Promise.resolve(false);
+          return finishAttempt.then(function (locked) {
+            if (!locked) {
+              showLandscapeFallback('横屏切换受限，请开启系统自动旋转，横置设备后继续。', true);
             }
+            return locked;
           });
-        }
+        });
       }
 
       fullscreenButton.addEventListener('click', function () {
+        if (isMobile) {
+          attemptLandscapeFromButton();
+          return;
+        }
+
         if (activeUnityInstance) {
           activeUnityInstance.SetFullscreen(1);
         }
@@ -155,15 +243,14 @@
 
       updateFullscreenButton();
       attemptLandscapeMode();
-      if (isMobile) {
-        const landscapeGestureEvent = window.PointerEvent ? 'pointerup' : 'touchend';
-        document.addEventListener(landscapeGestureEvent, attemptLandscapeFromGesture, {
-          capture: true,
-          passive: true
-        });
-      }
 
-      window.addEventListener('resize', updateFullscreenButton);
+      window.addEventListener('resize', function () {
+        if (window.innerWidth >= window.innerHeight) {
+          completeLandscapeEntry();
+        } else {
+          updateFullscreenButton();
+        }
+      });
       document.addEventListener('fullscreenchange', function () {
         if (!document.fullscreenElement) {
           landscapeLocked = false;
@@ -185,7 +272,9 @@
       window.addEventListener('orientationchange', function () {
         landscapeLocked = false;
         window.setTimeout(function () {
-          updateFullscreenButton();
+          if (window.innerWidth >= window.innerHeight) {
+            completeLandscapeEntry();
+          }
           attemptLandscapeMode();
         }, 100);
       });
@@ -210,16 +299,18 @@
       const loaderScript = document.createElement('script');
       loaderScript.src = loaderUrl;
       loaderScript.onload = function () {
-        createUnityInstance(canvas, config, function (progress) {
-          progressBar.style.width = (progress * 100) + '%';
-        }).then(function (unityInstance) {
-          activeUnityInstance = unityInstance;
-          loadingBar.style.display = 'none';
-          updateFullscreenButton();
-          attemptLandscapeMode();
-        }).catch(function (error) {
-          loadingBar.style.display = 'none';
-          unityShowBanner(String(error), 'error');
+        orientationReadyPromise.then(function () {
+          createUnityInstance(canvas, config, function (progress) {
+            progressBar.style.width = (progress * 100) + '%';
+          }).then(function (unityInstance) {
+            activeUnityInstance = unityInstance;
+            loadingBar.style.display = 'none';
+            updateFullscreenButton();
+            attemptLandscapeMode();
+          }).catch(function (error) {
+            loadingBar.style.display = 'none';
+            unityShowBanner(String(error), 'error');
+          });
         });
       };
       loaderScript.onerror = function () {
