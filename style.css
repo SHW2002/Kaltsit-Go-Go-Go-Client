@@ -90,7 +90,7 @@ body {
   width: min(90vw, 720px);
   display: none;
   transform: translateX(-50%);
-  z-index: 100;
+  z-index: 120;
   text-align: center;
 }
 
@@ -110,7 +110,7 @@ body {
   background: #b3261e;
 }
 
-#unity-fullscreen-button {
+#unity-orientation-button {
   position: absolute;
   right: max(12px, env(safe-area-inset-right));
   bottom: max(12px, env(safe-area-inset-bottom));
@@ -123,15 +123,21 @@ body {
   background: rgba(20, 25, 35, 0.68);
   font-size: 25px;
   cursor: pointer;
-  z-index: 30;
+  z-index: 100;
   -webkit-tap-highlight-color: transparent;
 }
 
-#unity-container.unity-mobile #unity-fullscreen-button {
+#unity-container.unity-mobile #unity-orientation-button {
   top: max(12px, env(safe-area-inset-top));
   right: auto;
   bottom: auto;
   left: max(12px, env(safe-area-inset-left));
+  width: auto;
+  min-width: 78px;
+  padding: 0 16px;
+  border-radius: 23px;
+  font-size: 15px;
+  font-weight: 700;
 }
 
 #orientation-hint {
@@ -160,7 +166,7 @@ body {
 }
 
 @media (display-mode: fullscreen) {
-  #unity-fullscreen-button {
+  #unity-orientation-button {
     display: none !important;
   }
 }

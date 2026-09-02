@@ -26,11 +26,11 @@
 
       <div id="unity-warning" role="status"></div>
 
-      <button id="unity-fullscreen-button" type="button" aria-label="全屏游玩">⛶</button>
+      <button id="unity-orientation-button" type="button" aria-label="快捷横屏">↻ 横屏</button>
 
       <div id="orientation-hint" aria-hidden="true">
         <div class="orientation-phone">↻</div>
-        <div>请旋转手机并横屏游玩</div>
+        <div>点击“横屏”或手动旋转手机</div>
       </div>
     </main>
 
@@ -39,7 +39,7 @@
       const canvas = document.querySelector('#unity-canvas');
       const loadingBar = document.querySelector('#unity-loading-bar');
       const progressBar = document.querySelector('#unity-progress-bar');
-      const fullscreenButton = document.querySelector('#unity-fullscreen-button');
+      const orientationButton = document.querySelector('#unity-orientation-button');
       const warningBanner = document.querySelector('#unity-warning');
       const orientationHint = document.querySelector('#orientation-hint');
 
@@ -47,15 +47,22 @@
       const touchDevice = navigator.maxTouchPoints > 1;
       const coarsePointer = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
       const isMobile = mobileUserAgent || (touchDevice && coarsePointer);
+      let activeUnityInstance = null;
 
       if (isMobile) {
         container.classList.add('unity-mobile');
         canvas.classList.add('unity-mobile');
+      } else {
+        orientationButton.textContent = '⛶';
+        orientationButton.setAttribute('aria-label', '全屏游玩');
       }
 
       function updateOrientationHint() {
         const isPortrait = window.innerHeight > window.innerWidth;
         orientationHint.classList.toggle('visible', isMobile && isPortrait);
+        orientationButton.style.display = isMobile
+          ? (isPortrait ? 'block' : 'none')
+          : (activeUnityInstance ? 'block' : 'none');
       }
 
       function unityShowBanner(message, type) {
@@ -73,9 +80,46 @@
         }
       }
 
+      function requestLandscapeMode() {
+        if (!isMobile) {
+          if (activeUnityInstance) {
+            activeUnityInstance.SetFullscreen(1);
+          }
+          return;
+        }
+
+        let fullscreenRequest = Promise.resolve();
+        try {
+          if (activeUnityInstance) {
+            activeUnityInstance.SetFullscreen(1);
+          } else if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+            fullscreenRequest = document.documentElement.requestFullscreen();
+          }
+        } catch (error) {
+          fullscreenRequest = Promise.reject(error);
+        }
+
+        Promise.resolve(fullscreenRequest)
+          .catch(function () {
+          })
+          .then(function () {
+            if (window.screen.orientation && window.screen.orientation.lock) {
+              return window.screen.orientation.lock('landscape');
+            }
+
+            throw new Error('Orientation lock is unavailable.');
+          })
+          .catch(function () {
+            unityShowBanner('当前浏览器无法自动锁定横屏，请手动旋转手机。', 'warning');
+          });
+      }
+
+      orientationButton.addEventListener('click', requestLandscapeMode);
       updateOrientationHint();
       window.addEventListener('resize', updateOrientationHint);
-      window.addEventListener('orientationchange', updateOrientationHint);
+      window.addEventListener('orientationchange', function () {
+        window.setTimeout(updateOrientationHint, 100);
+      });
 
       const buildUrl = 'Build';
       const loaderUrl = buildUrl + '/WebGL.loader.js';
@@ -100,17 +144,9 @@
         createUnityInstance(canvas, config, function (progress) {
           progressBar.style.width = (progress * 100) + '%';
         }).then(function (unityInstance) {
+          activeUnityInstance = unityInstance;
           loadingBar.style.display = 'none';
-          fullscreenButton.style.display = 'block';
-
-          fullscreenButton.addEventListener('click', function () {
-            unityInstance.SetFullscreen(1);
-
-            if (window.screen.orientation && window.screen.orientation.lock) {
-              window.screen.orientation.lock('landscape').catch(function () {
-              });
-            }
-          });
+          updateOrientationHint();
         }).catch(function (error) {
           loadingBar.style.display = 'none';
           unityShowBanner(String(error), 'error');
