@@ -114,8 +114,52 @@ body {
   position: absolute;
   inset: 0;
   display: none;
+  align-items: center;
+  justify-content: center;
   background: rgba(15, 17, 23, 0.82);
   z-index: 80;
+}
+
+#unity-browser-guide {
+  width: min(86vw, 440px);
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  color: #f2f4f8;
+  text-align: center;
+}
+
+#unity-browser-guide-title {
+  margin: 0 0 14px;
+  font-size: 24px;
+  line-height: 1.3;
+}
+
+#unity-browser-guide-message,
+#unity-browser-guide-help {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+#unity-open-browser-button {
+  min-width: 176px;
+  height: 48px;
+  margin: 24px 0 16px;
+  padding: 0 20px;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 6px;
+  color: #fff;
+  background: #245f9e;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+#unity-browser-guide-help {
+  color: #c8ced8;
+  font-size: 13px;
 }
 
 #unity-fullscreen-button {

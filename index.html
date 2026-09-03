@@ -29,7 +29,14 @@
         </div>
       </section>
 
-      <div id="unity-orientation-gate" aria-hidden="true"></div>
+      <div id="unity-orientation-gate" aria-hidden="true">
+        <section id="unity-browser-guide" aria-labelledby="unity-browser-guide-title">
+          <h1 id="unity-browser-guide-title">请使用系统浏览器打开</h1>
+          <p id="unity-browser-guide-message"></p>
+          <button id="unity-open-browser-button" type="button">打开系统浏览器</button>
+          <p id="unity-browser-guide-help"></p>
+        </section>
+      </div>
       <div id="unity-warning" role="status"></div>
 
       <button id="unity-fullscreen-button" type="button" aria-label="全屏游玩" title="全屏">⛶</button>
@@ -42,23 +49,44 @@
       const progressBar = document.querySelector('#unity-progress-bar');
       const fullscreenButton = document.querySelector('#unity-fullscreen-button');
       const orientationGate = document.querySelector('#unity-orientation-gate');
+      const browserGuide = document.querySelector('#unity-browser-guide');
+      const browserGuideMessage = document.querySelector('#unity-browser-guide-message');
+      const browserGuideHelp = document.querySelector('#unity-browser-guide-help');
+      const openBrowserButton = document.querySelector('#unity-open-browser-button');
       const warningBanner = document.querySelector('#unity-warning');
 
       const userAgent = navigator.userAgent;
+      const isAndroid = /Android/i.test(userAgent);
+      const isIOS = /iPhone|iPad|iPod/i.test(userAgent);
       const mobileUserAgent = /Android|iPhone|iPad|iPod/i.test(userAgent);
       const embeddedBrowserName = /MicroMessenger/i.test(userAgent)
         ? '微信'
         : /MQQBrowser|\bQQ\/[\d.]+/i.test(userAgent)
           ? 'QQ'
           : '';
+      const isAndroidWebView = /;\s*wv\)|\bwv\b/i.test(userAgent);
+      const isIOSWebView = isIOS && /AppleWebKit/i.test(userAgent) && !/Safari/i.test(userAgent);
+      const isEmbeddedBrowser = Boolean(embeddedBrowserName) || isAndroidWebView || isIOSWebView;
       const touchDevice = navigator.maxTouchPoints > 1;
       const coarsePointer = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
       const isMobile = mobileUserAgent || (touchDevice && coarsePointer);
+      const orientation = window.screen.orientation;
+      const supportsOrientationLock = orientation && typeof orientation.lock === 'function';
+      const supportsFullscreen = container.requestFullscreen || container.webkitRequestFullscreen;
+      const standaloneMode = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+        || navigator.standalone === true;
+      const supportsAutomaticLandscape = !isEmbeddedBrowser
+        && Boolean(supportsOrientationLock)
+        && Boolean(supportsFullscreen);
+      const systemBrowserRequired = isMobile
+        && !standaloneMode
+        && (isEmbeddedBrowser || (!isIOS && !supportsAutomaticLandscape));
       let activeUnityInstance = null;
       let landscapeLocked = false;
       let manualLandscapeRequired = false;
       let landscapePromptShown = false;
       let landscapePromptEntry = null;
+      let browserPromptEntry = null;
       let resolveOrientationReady = null;
       let orientationReadyResolved = !isMobile;
       const orientationReadyPromise = isMobile
@@ -78,8 +106,10 @@
         const buttonLabel = showMobileFallback ? '手动切换横屏' : '全屏游玩';
 
         container.classList.toggle('manual-landscape', showMobileFallback);
-        orientationGate.style.display = showMobileFallback ? 'block' : 'none';
-        orientationGate.setAttribute('aria-hidden', showMobileFallback ? 'false' : 'true');
+        container.classList.toggle('system-browser-required', systemBrowserRequired);
+        orientationGate.style.display = systemBrowserRequired ? 'flex' : showMobileFallback ? 'block' : 'none';
+        orientationGate.setAttribute('aria-hidden', systemBrowserRequired || showMobileFallback ? 'false' : 'true');
+        browserGuide.style.display = systemBrowserRequired ? 'flex' : 'none';
         fullscreenButton.style.display = showMobileFallback || showDesktopFullscreen ? 'block' : 'none';
         fullscreenButton.setAttribute('aria-label', buttonLabel);
         fullscreenButton.title = showMobileFallback ? '横屏' : '全屏';
@@ -102,6 +132,99 @@
 
         return entry;
       }
+
+      function showBrowserToast(message) {
+        if (browserPromptEntry && browserPromptEntry.isConnected) {
+          browserPromptEntry.remove();
+        }
+        browserPromptEntry = unityShowBanner(message, 'warning');
+      }
+
+      function copyGameUrl() {
+        const targetUrl = new URL(window.location.href);
+        targetUrl.hash = '';
+
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+          return navigator.clipboard.writeText(targetUrl.href)
+            .then(function () {
+              return true;
+            })
+            .catch(function () {
+              return copyGameUrlFallback(targetUrl.href);
+            });
+        }
+
+        return Promise.resolve(copyGameUrlFallback(targetUrl.href));
+      }
+
+      function copyGameUrlFallback(url) {
+        const input = document.createElement('textarea');
+        input.value = url;
+        input.setAttribute('readonly', '');
+        input.style.position = 'fixed';
+        input.style.opacity = '0';
+        document.body.appendChild(input);
+        input.select();
+
+        let copied = false;
+        try {
+          copied = document.execCommand('copy');
+        } catch (error) {
+        }
+
+        input.remove();
+        return copied;
+      }
+
+      function buildAndroidBrowserIntent() {
+        const targetUrl = new URL(window.location.href);
+        targetUrl.hash = '';
+        return 'intent://' + targetUrl.host + targetUrl.pathname + targetUrl.search
+          + '#Intent;scheme=' + targetUrl.protocol.replace(':', '')
+          + ';action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;end';
+      }
+
+      function showSystemBrowserGuide() {
+        const browserLabel = embeddedBrowserName
+          ? embeddedBrowserName + '内置浏览器'
+          : isEmbeddedBrowser
+            ? '当前应用内浏览器'
+            : '当前浏览器';
+        loadingBar.style.display = 'none';
+        browserGuideMessage.textContent = browserLabel
+          + '不支持自动横屏，请使用系统浏览器重新打开游戏。';
+        browserGuideHelp.textContent = isAndroid
+          ? '若未自动打开，请点击右上角菜单，选择“在浏览器打开”。'
+          : '请点击右上角菜单选择“在浏览器打开”，也可先复制游戏链接。';
+        openBrowserButton.textContent = isAndroid ? '打开系统浏览器' : '复制游戏链接';
+        updateFullscreenButton();
+        showBrowserToast('当前浏览器不支持自动横屏，请使用系统浏览器打开后继续。');
+      }
+
+      openBrowserButton.addEventListener('click', function () {
+        const copyPromise = copyGameUrl();
+        if (!isAndroid) {
+          copyPromise.then(function (copied) {
+            showBrowserToast(copied
+              ? '游戏链接已复制，请从右上角菜单使用系统浏览器打开。'
+              : '请点击右上角菜单，选择“在浏览器打开”。');
+          });
+          return;
+        }
+
+        showBrowserToast('正在尝试打开系统浏览器，游戏链接也已复制。');
+        window.setTimeout(function () {
+          if (!document.hidden) {
+            showBrowserToast('若未自动打开，请点击右上角菜单，选择“在浏览器打开”。');
+          }
+        }, 1200);
+
+        try {
+          window.location.href = buildAndroidBrowserIntent();
+        } catch (error) {
+          showBrowserToast('请点击右上角菜单，选择“在浏览器打开”。');
+        }
+      });
 
       function showLandscapeFallback(message, forceToast) {
         if (!isMobile || window.innerWidth >= window.innerHeight) {
@@ -137,6 +260,10 @@
       }
 
       function completeLandscapeEntry() {
+        if (systemBrowserRequired) {
+          return;
+        }
+
         clearLandscapeFallback();
         if (!orientationReadyResolved) {
           orientationReadyResolved = true;
@@ -205,7 +332,7 @@
       }
 
       function attemptLandscapeMode() {
-        if (!isMobile || landscapeLocked) {
+        if (systemBrowserRequired || !isMobile || landscapeLocked) {
           return Promise.resolve(landscapeLocked);
         }
 
@@ -232,7 +359,7 @@
       }
 
       function attemptLandscapeFromButton() {
-        if (!isMobile || landscapeLocked) {
+        if (systemBrowserRequired || !isMobile || landscapeLocked) {
           return Promise.resolve(landscapeLocked);
         }
 
@@ -268,10 +395,19 @@
         }
       });
 
-      updateFullscreenButton();
-      attemptLandscapeMode();
+      if (systemBrowserRequired) {
+        showSystemBrowserGuide();
+      } else {
+        updateFullscreenButton();
+        attemptLandscapeMode();
+      }
 
       window.addEventListener('resize', function () {
+        if (systemBrowserRequired) {
+          updateFullscreenButton();
+          return;
+        }
+
         if (window.innerWidth >= window.innerHeight) {
           completeLandscapeEntry();
         } else {
@@ -344,7 +480,9 @@
         loadingBar.style.display = 'none';
         unityShowBanner('游戏加载器下载失败，请刷新页面重试。', 'error');
       };
-      document.body.appendChild(loaderScript);
+      if (!systemBrowserRequired) {
+        document.body.appendChild(loaderScript);
+      }
     </script>
   </body>
 </html>
