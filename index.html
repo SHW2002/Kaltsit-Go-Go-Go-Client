@@ -44,7 +44,13 @@
       const orientationGate = document.querySelector('#unity-orientation-gate');
       const warningBanner = document.querySelector('#unity-warning');
 
-      const mobileUserAgent = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+      const userAgent = navigator.userAgent;
+      const mobileUserAgent = /Android|iPhone|iPad|iPod/i.test(userAgent);
+      const embeddedBrowserName = /MicroMessenger/i.test(userAgent)
+        ? '微信'
+        : /MQQBrowser|\bQQ\/[\d.]+/i.test(userAgent)
+          ? 'QQ'
+          : '';
       const touchDevice = navigator.maxTouchPoints > 1;
       const coarsePointer = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
       const isMobile = mobileUserAgent || (touchDevice && coarsePointer);
@@ -106,6 +112,11 @@
         manualLandscapeRequired = true;
         updateFullscreenButton();
 
+        if (forceToast && landscapePromptEntry && landscapePromptEntry.isConnected) {
+          landscapePromptEntry.remove();
+          landscapePromptEntry = null;
+        }
+
         if (landscapePromptEntry && landscapePromptEntry.isConnected) {
           landscapePromptEntry.textContent = message;
         } else if (!landscapePromptShown || forceToast) {
@@ -131,6 +142,22 @@
           orientationReadyResolved = true;
           resolveOrientationReady();
         }
+      }
+
+      function getManualLandscapeFailureMessage() {
+        if (embeddedBrowserName) {
+          return embeddedBrowserName
+            + '内置浏览器限制网页横屏，请直接横置手机；若仍无效，请从右上角菜单使用系统浏览器打开。';
+        }
+
+        const orientation = window.screen.orientation;
+        const supportsOrientationLock = orientation && typeof orientation.lock === 'function';
+        const supportsFullscreen = container.requestFullscreen || container.webkitRequestFullscreen;
+        if (!supportsOrientationLock || !supportsFullscreen) {
+          return '当前浏览器不支持网页横屏，请直接横置手机；若仍无效，请使用系统浏览器打开。';
+        }
+
+        return '横屏切换失败，请确认系统自动旋转已开启，横置设备后继续。';
       }
 
       function lockLandscape() {
@@ -223,7 +250,7 @@
           const finishAttempt = results[1] ? lockLandscape() : Promise.resolve(false);
           return finishAttempt.then(function (locked) {
             if (!locked) {
-              showLandscapeFallback('横屏切换受限，请开启系统自动旋转，横置设备后继续。', true);
+              showLandscapeFallback(getManualLandscapeFailureMessage(), true);
             }
             return locked;
           });
