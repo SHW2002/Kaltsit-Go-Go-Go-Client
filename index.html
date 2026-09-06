@@ -475,11 +475,15 @@
       });
 
       const buildUrl = 'Build';
-      const loaderUrl = buildUrl + '/WebGL.loader.js';
+      const buildCacheVersion = '20260906034644';
+      const buildAssetUrl = function (fileName) {
+        return buildUrl + '/' + fileName + '?v=' + buildCacheVersion;
+      };
+      const loaderUrl = buildAssetUrl('WebGL.loader.js');
       const config = {
-        dataUrl: buildUrl + '/WebGL.data',
-        frameworkUrl: buildUrl + '/WebGL.framework.js',
-        codeUrl: buildUrl + '/WebGL.wasm',
+        dataUrl: buildAssetUrl('WebGL.data'),
+        frameworkUrl: buildAssetUrl('WebGL.framework.js'),
+        codeUrl: buildAssetUrl('WebGL.wasm'),
         streamingAssetsUrl: 'StreamingAssets',
         companyName: "SHW Studio",
         productName: "Kaltsit Go Go Go !",
