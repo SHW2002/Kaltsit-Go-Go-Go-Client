@@ -474,8 +474,10 @@
         }, 100);
       });
 
-      const buildUrl = 'Build';
-      const buildCacheVersion = '20260906122809';
+      const releaseVersion = new URLSearchParams(window.location.search).get('v');
+      const buildRoot = releaseVersion ? 'versions/' + encodeURIComponent(releaseVersion) : '.';
+      const buildUrl = buildRoot + '/Build';
+      const buildCacheVersion = releaseVersion || '20260906130405';
       const buildAssetUrl = function (fileName) {
         return buildUrl + '/' + fileName + '?v=' + buildCacheVersion;
       };
@@ -484,10 +486,10 @@
         dataUrl: buildAssetUrl('WebGL.data'),
         frameworkUrl: buildAssetUrl('WebGL.framework.js'),
         codeUrl: buildAssetUrl('WebGL.wasm'),
-        streamingAssetsUrl: 'StreamingAssets',
+        streamingAssetsUrl: buildRoot + '/StreamingAssets',
         companyName: "SHW Studio",
         productName: "Kaltsit Go Go Go !",
-        productVersion: "2609062027",
+        productVersion: "2609062104",
         showBanner: unityShowBanner
       };
 
