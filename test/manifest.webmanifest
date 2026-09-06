@@ -1,0 +1,10 @@
+{
+  "name": "Kaltsit Go Go Go !",
+  "short_name": "Kaltsit Go",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0f1117",
+  "theme_color": "#0f1117"
+}
