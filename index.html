@@ -94,6 +94,38 @@
             resolveOrientationReady = resolve;
           })
         : Promise.resolve();
+      let mobileAudioUnlocked = !isMobile;
+
+      function unlockMobileAudio() {
+        if (mobileAudioUnlocked) {
+          return;
+        }
+
+        mobileAudioUnlocked = true;
+        const AudioContextConstructor = window.AudioContext || window.webkitAudioContext;
+        if (AudioContextConstructor) {
+          try {
+            const audioContext = new AudioContextConstructor();
+            Promise.resolve(audioContext.resume())
+              .catch(function () {})
+              .then(function () {
+                if (typeof audioContext.close === 'function') {
+                  return audioContext.close().catch(function () {});
+                }
+                return undefined;
+              });
+          } catch (error) {
+          }
+        }
+
+        resolveAudioReady();
+      }
+
+      if (isMobile) {
+        document.addEventListener('pointerdown', unlockMobileAudio, { once: true, passive: true });
+        document.addEventListener('touchstart', unlockMobileAudio, { once: true, passive: true });
+        document.addEventListener('click', unlockMobileAudio, { once: true, passive: true });
+      }
 
       if (isMobile) {
         container.classList.add('unity-mobile');
