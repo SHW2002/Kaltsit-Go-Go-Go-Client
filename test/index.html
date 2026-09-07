@@ -477,7 +477,7 @@
       const releaseVersion = new URLSearchParams(window.location.search).get('v');
       const buildRoot = releaseVersion ? 'versions/' + encodeURIComponent(releaseVersion) : '.';
       const buildUrl = buildRoot + '/Build';
-      const buildCacheVersion = releaseVersion || '20260907054339';
+      const buildCacheVersion = releaseVersion || '20260907061154';
       const buildAssetUrl = function (fileName) {
         return buildUrl + '/' + fileName + '?v=' + buildCacheVersion;
       };
@@ -489,7 +489,7 @@
         streamingAssetsUrl: buildRoot + '/StreamingAssets',
         companyName: "SHW Studio",
         productName: "Kaltsit Go Go Go !",
-        productVersion: "2609071343",
+        productVersion: "2609071411",
         showBanner: unityShowBanner
       };
 
