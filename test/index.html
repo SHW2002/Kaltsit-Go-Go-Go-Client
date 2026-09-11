@@ -2,6 +2,7 @@
 <html lang="zh-CN">
   <head>
     <meta charset="utf-8">
+    <script src="debug-console.js?v=20260911044210"></script>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <meta
       name="viewport"
@@ -42,7 +43,16 @@
       <button id="unity-fullscreen-button" type="button" aria-label="全屏游玩" title="全屏">⛶</button>
     </main>
 
+    <script src="analytics-loader.js?v=20260911044210"></script>
+    <script src="analytics-loading.js?v=20260911044210"></script>
     <script>
+      const analytics = {};
+      for (const method of ['loadResult', 'orientationGate', 'orientationReady']) {
+        analytics[method] = function () {
+          if (window.KaltsitAnalyticsDispatch)
+            window.KaltsitAnalyticsDispatch(method, Array.from(arguments));
+        };
+      }
       const container = document.querySelector('#unity-container');
       const canvas = document.querySelector('#unity-canvas');
       const loadingBar = document.querySelector('#unity-loading-bar');
@@ -117,8 +127,6 @@
           } catch (error) {
           }
         }
-
-        resolveAudioReady();
       }
 
       if (isMobile) {
@@ -140,6 +148,8 @@
         container.classList.toggle('manual-landscape', showMobileFallback);
         container.classList.toggle('system-browser-required', systemBrowserRequired);
         orientationGate.style.display = systemBrowserRequired ? 'flex' : showMobileFallback ? 'block' : 'none';
+        if (systemBrowserRequired || showMobileFallback)
+          analytics.orientationGate(systemBrowserRequired ? 'system_browser_required' : 'landscape_required');
         orientationGate.setAttribute('aria-hidden', systemBrowserRequired || showMobileFallback ? 'false' : 'true');
         browserGuide.style.display = systemBrowserRequired ? 'flex' : 'none';
         fullscreenButton.style.display = showMobileFallback || showDesktopFullscreen ? 'block' : 'none';
@@ -149,6 +159,7 @@
       }
 
       function unityShowBanner(message, type) {
+        window.KaltsitDebugConsole?.log(type === 'error' ? 'error' : 'warn', '[Unity]', message);
         const entry = document.createElement('div');
         entry.textContent = message;
         entry.className = type === 'error' ? 'unity-error' : 'unity-warning';
@@ -299,6 +310,7 @@
         clearLandscapeFallback();
         if (!orientationReadyResolved) {
           orientationReadyResolved = true;
+          analytics.orientationReady();
           resolveOrientationReady();
         }
       }
@@ -340,7 +352,7 @@
         }
       }
 
-      function requestMobileFullscreen() {
+      function requestGameFullscreen() {
         if (document.fullscreenElement || document.webkitFullscreenElement) {
           return Promise.resolve(true);
         }
@@ -374,7 +386,7 @@
             return locked;
           }
 
-          return requestMobileFullscreen().then(function (enteredFullscreen) {
+          return requestGameFullscreen().then(function (enteredFullscreen) {
             if (!enteredFullscreen) {
               showLandscapeFallback('自动横屏失败，请点击“切换横屏”后继续。', false);
               return false;
@@ -397,7 +409,7 @@
 
         const lockAttempt = lockLandscape();
         const fullscreenAttempt = window.innerWidth < window.innerHeight
-          ? requestMobileFullscreen()
+          ? requestGameFullscreen()
           : Promise.resolve(document.fullscreenElement || document.webkitFullscreenElement);
 
         return Promise.all([lockAttempt, fullscreenAttempt]).then(function (results) {
@@ -423,7 +435,9 @@
         }
 
         if (activeUnityInstance) {
-          activeUnityInstance.SetFullscreen(1);
+          requestGameFullscreen().then(function (entered) {
+            if (!entered) unityShowBanner('无法进入全屏，请使用浏览器的全屏功能。', 'warning');
+          });
         }
       });
 
@@ -477,7 +491,7 @@
       const releaseVersion = new URLSearchParams(window.location.search).get('v');
       const buildRoot = releaseVersion ? 'versions/' + encodeURIComponent(releaseVersion) : '.';
       const buildUrl = buildRoot + '/Build';
-      const buildCacheVersion = releaseVersion || '20260909130853';
+      const buildCacheVersion = releaseVersion || '20260911044210';
       const buildAssetUrl = function (fileName) {
         return buildUrl + '/' + fileName + '?v=' + buildCacheVersion;
       };
@@ -489,8 +503,10 @@
         streamingAssetsUrl: buildRoot + '/StreamingAssets',
         companyName: "SHW Studio",
         productName: "Kaltsit Go Go Go !",
-        productVersion: "2609092109",
-        showBanner: unityShowBanner
+        productVersion: "2609111242",
+        showBanner: unityShowBanner,
+        print: function (message) { console.log('[Unity]', message); },
+        printErr: function (message) { console.error('[Unity]', message); }
       };
 
       if (isMobile) {
@@ -498,27 +514,40 @@
       }
 
       const loaderScript = document.createElement('script');
+      const loading = systemBrowserRequired ? null : window.KaltsitLoading?.create(config);
       loaderScript.src = loaderUrl;
       loaderScript.onload = function () {
+        loading?.end('loader_script');
+        loading?.begin('orientation_wait');
         orientationReadyPromise.then(function () {
-          createUnityInstance(canvas, config, function (progress) {
+          loading?.end('orientation_wait');
+          loading?.begin('unity_total');
+          loading?.begin('unity_prepare');
+          return createUnityInstance(canvas, config, function (progress) {
             progressBar.style.width = (progress * 100) + '%';
           }).then(function (unityInstance) {
+            loading?.finish('success');
+            analytics.loadResult('success', 'unity_ready');
             activeUnityInstance = unityInstance;
             loadingBar.style.display = 'none';
             updateFullscreenButton();
             attemptLandscapeMode();
-          }).catch(function (error) {
-            loadingBar.style.display = 'none';
-            unityShowBanner(String(error), 'error');
           });
+        }).catch(function (error) {
+          loading?.finish('failed');
+          analytics.loadResult('failed', 'unity_initialization');
+          loadingBar.style.display = 'none';
+          unityShowBanner(String(error), 'error');
         });
       };
       loaderScript.onerror = function () {
+        loading?.finish('failed');
+        analytics.loadResult('failed', 'loader_download');
         loadingBar.style.display = 'none';
         unityShowBanner('游戏加载器下载失败，请刷新页面重试。', 'error');
       };
       if (!systemBrowserRequired) {
+        loading?.begin('loader_script');
         document.body.appendChild(loaderScript);
       }
     </script>

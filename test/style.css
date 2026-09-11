@@ -24,6 +24,10 @@ body {
   touch-action: none;
 }
 
+body.has-debug-console {
+  touch-action: auto;
+}
+
 #unity-container {
   position: relative;
   width: 100%;
