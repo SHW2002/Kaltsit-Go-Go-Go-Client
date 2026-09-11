@@ -2,7 +2,7 @@
 <html lang="zh-CN">
   <head>
     <meta charset="utf-8">
-    <script src="debug-console.js?v=20260911044210"></script>
+    <script src="debug-console.js?v=20260911074054"></script>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <meta
       name="viewport"
@@ -43,8 +43,8 @@
       <button id="unity-fullscreen-button" type="button" aria-label="全屏游玩" title="全屏">⛶</button>
     </main>
 
-    <script src="analytics-loader.js?v=20260911044210"></script>
-    <script src="analytics-loading.js?v=20260911044210"></script>
+    <script src="analytics-loader.js?v=20260911074054"></script>
+    <script src="analytics-loading.js?v=20260911074054"></script>
     <script>
       const analytics = {};
       for (const method of ['loadResult', 'orientationGate', 'orientationReady']) {
@@ -491,7 +491,7 @@
       const releaseVersion = new URLSearchParams(window.location.search).get('v');
       const buildRoot = releaseVersion ? 'versions/' + encodeURIComponent(releaseVersion) : '.';
       const buildUrl = buildRoot + '/Build';
-      const buildCacheVersion = releaseVersion || '20260911044210';
+      const buildCacheVersion = releaseVersion || '20260911074054';
       const buildAssetUrl = function (fileName) {
         return buildUrl + '/' + fileName + '?v=' + buildCacheVersion;
       };
@@ -503,7 +503,7 @@
         streamingAssetsUrl: buildRoot + '/StreamingAssets',
         companyName: "SHW Studio",
         productName: "Kaltsit Go Go Go !",
-        productVersion: "2609111242",
+        productVersion: "2609111540",
         showBanner: unityShowBanner,
         print: function (message) { console.log('[Unity]', message); },
         printErr: function (message) { console.error('[Unity]', message); }
