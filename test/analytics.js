@@ -11,7 +11,7 @@
   const browser = /MicroMessenger/i.test(agent) ? 'wechat' : /MQQBrowser|\bQQ\//i.test(agent) ? 'qq'
     : /Edg\//i.test(agent) ? 'edge' : /Firefox|FxiOS/i.test(agent) ? 'firefox'
     : /Chrome|CriOS/i.test(agent) ? 'chrome' : /Safari/i.test(agent) ? 'safari' : 'other';
-  const endpoint = config.apiBaseUrl ? config.apiBaseUrl.replace(/\/+$/, '') + '/api/v1/analytics/events' : '';
+  const endpoint = config.apiBaseUrl ? config.apiBaseUrl.replace(/\/+$/, '') + '/api/v1/gpr' : '';
   let enabled = config.enabled === true && Boolean(endpoint);
   let queue = [];
   let inFlight = [];
